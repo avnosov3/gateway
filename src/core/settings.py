@@ -28,7 +28,7 @@ ALLOWED_HOSTS = tuple(allowed_host for allowed_host in env.list("DJANGO_ALLOWED_
 
 # Application definition
 
-INSTALLED_APPS = [
+DJANGO_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -36,6 +36,16 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
+THIRD_PARTY_APPS = [
+    "drf_yasg",
+    "rest_framework",
+    "django_celery_beat",
+]
+LOCAL_APPS = [
+    "gateway",
+]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
