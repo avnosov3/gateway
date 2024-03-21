@@ -1,0 +1,99 @@
+version: '3.9'
+
+services:
+
+  redis:
+    image: redis:7.2.1-alpine
+    container_name: gateway-redis
+    restart: always
+    expose:
+    - 6379
+    volumes:
+    - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: gateway-app:v1.0
+    container_name: gateway-app
+    restart: always
+    build:
+      context: .
+      dockerfile: infra/app/Dockerfile
+    entrypoint: /app/entrypoint.sh
+    expose:
+    - 8000
+    volumes:
+    - static:/app/src/static/
+    env_file:
+    - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+
+  worker:
+    image: gateway-worker:v1.0
+    container_name: gateway-worker
+    restart: on-failure
+    build:
+      context: .
+      dockerfile: ./infra/app/Dockerfile
+    command: bash -c 'celery -A core worker -l info'
+    env_file:
+    - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: celery -A core.celery.app status
+      interval: 30s
+      timeout: 30s
+      retries: 2
+
+  flower:
+    image: gateway-flower:v1.0
+    container_name: gateway-flower
+    build:
+      context: .
+      dockerfile: ./infra/app/Dockerfile
+    command: bash -c 'celery -A core flower --port=5555 --url_prefix=/flower'
+    expose:
+    - 5555
+    volumes:
+    - flower_data:/data/
+    depends_on:
+      worker:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+    - .env
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: gateway-nginx
+    ports:
+    - 80:80
+    volumes:
+    - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    - static:/var/html/static/
+    depends_on:
+      app:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+
+
+volumes:
+  redis_data:
+    name: gateway-redis
+  flower_data:
+    name: gateway-flower
+  static:
+    name: gateway-static
